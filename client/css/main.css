@@ -1,0 +1,665 @@
+/* Base styles and reset */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: #000;
+    font-family: 'MedievalSharp', cursive;
+    color: white;
+    touch-action: none;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -khtml-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+/* Canvas styles */
+canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+/* Screen management */
+.screen {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: none;
+    z-index: 100;
+    background: radial-gradient(circle at center, rgba(50, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.9) 70%);
+}
+
+.screen.active {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Loading screen */
+#loading-screen {
+    display: flex;
+    z-index: 1000;
+    background: #000;
+}
+
+.loading-container {
+    text-align: center;
+    padding: 20px;
+    max-width: 600px;
+}
+
+.loading-container h1 {
+    font-family: 'Cinzel Decorative', fantasy;
+    font-size: 48px;
+    margin-bottom: 40px;
+    color: #ff3333;
+    text-shadow: 0 0 20px #ff0000;
+    animation: titleGlow 3s infinite alternate;
+}
+
+.progress-container {
+    width: 100%;
+    height: 20px;
+    background-color: #333;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 20px;
+}
+
+.progress-bar {
+    height: 100%;
+    width: 0%;
+    background-color: #ff3333;
+    transition: width 0.3s ease;
+}
+
+#loading-text {
+    font-size: 18px;
+    color: #bbb;
+}
+
+/* Main menu styles */
+.menu-container {
+    text-align: center;
+    padding: 20px;
+    max-width: 600px;
+}
+
+.game-title {
+    font-family: 'Cinzel Decorative', fantasy;
+    font-size: 64px;
+    margin-bottom: 40px;
+    color: #ff3333;
+    text-shadow: 0 0 20px #ff0000;
+    animation: titleGlow 3s infinite alternate;
+}
+
+.menu-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.menu-button {
+    padding: 15px 30px;
+    font-size: 24px;
+    font-family: 'MedievalSharp', fantasy;
+    background-color: #aa0000;
+    color: white;
+    border: 3px solid #ff6666;
+    border-radius: 8px;
+    cursor: pointer;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    box-shadow: 0 0 20px rgba(255, 0, 0, 0.5);
+    transition: all 0.3s ease;
+}
+
+.menu-button:hover {
+    background-color: #cc0000;
+    transform: scale(1.05);
+    box-shadow: 0 0 30px rgba(255, 0, 0, 0.7);
+}
+
+/* Party lobby screen */
+.party-container {
+    background-color: rgba(0, 0, 0, 0.8);
+    border-radius: 10px;
+    padding: 30px;
+    width: 90%;
+    max-width: 600px;
+}
+
+.party-container h2 {
+    text-align: center;
+    margin-bottom: 20px;
+    font-size: 32px;
+    color: #ff6666;
+}
+
+#party-code-display {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 30px;
+    gap: 10px;
+    font-size: 20px;
+}
+
+#party-code {
+    background-color: rgba(255, 255, 255, 0.1);
+    padding: 5px 15px;
+    border-radius: 5px;
+    letter-spacing: 3px;
+    font-weight: bold;
+}
+
+#copy-code {
+    padding: 5px 10px;
+    background-color: #555;
+    border: none;
+    border-radius: 5px;
+    color: white;
+    cursor: pointer;
+}
+
+#party-members {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-bottom: 30px;
+}
+
+.party-member {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 10px;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 5px;
+}
+
+.member-avatar {
+    width: 40px;
+    height: 40px;
+    background-color: #555;
+    border-radius: 50%;
+}
+
+.member-name {
+    flex-grow: 1;
+    font-size: 18px;
+}
+
+.host-indicator {
+    padding: 3px 8px;
+    background-color: #ff6666;
+    border-radius: 3px;
+    font-size: 12px;
+}
+
+.party-controls {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 20px;
+}
+
+/* Join party screen */
+.join-container {
+    background-color: rgba(0, 0, 0, 0.8);
+    border-radius: 10px;
+    padding: 30px;
+    width: 90%;
+    max-width: 600px;
+    text-align: center;
+}
+
+.join-container h2 {
+    margin-bottom: 30px;
+    font-size: 32px;
+    color: #ff6666;
+}
+
+.input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 30px;
+}
+
+.input-group label {
+    font-size: 18px;
+    text-align: left;
+}
+
+#party-code-input {
+    padding: 15px;
+    font-size: 24px;
+    background-color: rgba(255, 255, 255, 0.1);
+    border: 2px solid #555;
+    border-radius: 5px;
+    color: white;
+    letter-spacing: 8px;
+    text-align: center;
+    text-transform: uppercase;
+}
+
+/* Button styles */
+.primary-button, .secondary-button {
+    padding: 12px 24px;
+    font-size: 18px;
+    font-family: 'MedievalSharp', fantasy;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.primary-button {
+    background-color: #aa0000;
+    color: white;
+    border: 2px solid #ff6666;
+}
+
+.primary-button:hover {
+    background-color: #cc0000;
+    box-shadow: 0 0 15px rgba(255, 0, 0, 0.5);
+}
+
+.secondary-button {
+    background-color: #333;
+    color: white;
+    border: 2px solid #555;
+}
+
+.secondary-button:hover {
+    background-color: #444;
+}
+
+/* Game UI styles */
+#game-ui {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    width: calc(100% - 40px);
+    pointer-events: none;
+    display: none;
+}
+
+#health-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.health-bar {
+    height: 20px;
+    border-radius: 10px;
+    background-color: #333;
+    overflow: hidden;
+    position: relative;
+    width: 100%;
+}
+
+#health-fill, #boss-health-fill {
+    height: 100%;
+    width: 100%;
+    transition: width 0.3s ease-out;
+}
+
+#health-fill {
+    background-color: #2ecc71;
+}
+
+#boss-health-fill {
+    background-color: #e74c3c;
+}
+
+#player-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 250px;
+}
+
+#player-health {
+    margin-bottom: 5px;
+}
+
+#player-attributes {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.player-stat {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background-color: rgba(0, 0, 0, 0.5);
+    padding: 4px 8px;
+    border-radius: 5px;
+}
+
+.stat-label {
+    font-size: 14px;
+    font-weight: bold;
+    color: #ccc;
+    margin-bottom: 3px;
+}
+
+.stat-value {
+    font-size: 16px;
+    font-weight: bold;
+    color: white;
+    text-shadow: 0 0 3px rgba(255, 255, 255, 0.5);
+}
+
+#boss-container {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    width: 300px;
+}
+
+#boss-name {
+    margin-bottom: 5px;
+    font-size: 16px;
+    text-align: right;
+    color: white;
+    text-shadow: 0 0 5px rgba(255, 0, 0, 0.5);
+}
+
+#pickup-message {
+    position: absolute;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #ffff00;
+    font-size: 20px;
+    text-shadow: 0 0 5px #ff9900;
+    opacity: 0;
+    transition: opacity 0.5s;
+    pointer-events: none;
+    z-index: 10;
+}
+
+#crosshair {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 24px;
+    color: white;
+    z-index: 5;
+    display: none;
+}
+
+/* Mobile controls */
+#mobile-controls {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10;
+    pointer-events: none;
+    display: none;
+}
+
+#joystick-container {
+    position: absolute;
+    bottom: 40px;
+    left: 40px;
+    width: 150px;
+    height: 150px;
+    background-color: rgba(0, 0, 0, 0.4);
+    border: 2px solid rgba(255, 255, 255, 0.4);
+    border-radius: 75px;
+    pointer-events: auto;
+    touch-action: none;
+    z-index: 20;
+}
+
+#joystick {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 70px;
+    height: 70px;
+    background-color: rgba(255, 255, 255, 0.6);
+    border-radius: 35px;
+    pointer-events: none;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+}
+
+#attack-button {
+    position: absolute;
+    bottom: 60px;
+    right: 60px;
+    width: 100px;
+    height: 100px;
+    background-color: rgba(255, 50, 50, 0.6);
+    border: 2px solid rgba(255, 255, 255, 0.4);
+    border-radius: 50px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 20px;
+    font-weight: bold;
+    color: white;
+    pointer-events: auto;
+    text-shadow: 0 0 5px rgba(0, 0, 0, 0.7);
+    box-shadow: 0 0 15px rgba(255, 0, 0, 0.5);
+    z-index: 20;
+}
+
+#look-controls {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 5;
+    pointer-events: auto;
+}
+
+/* Rotation message for mobile */
+#rotate-device {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #000;
+    z-index: 2000;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    text-align: center;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+#rotate-device p {
+    font-size: 24px;
+    margin: 10px 0;
+}
+
+@keyframes rotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(90deg); }
+}
+
+#rotate-device p:first-child {
+    font-size: 48px;
+    animation: rotate 2s infinite alternate;
+}
+
+/* Game over screen */
+.game-over-container {
+    background-color: rgba(0, 0, 0, 0.8);
+    border-radius: 10px;
+    padding: 30px;
+    width: 90%;
+    max-width: 600px;
+    text-align: center;
+}
+
+#game-over-title {
+    font-size: 48px;
+    color: #ff3333;
+    margin-bottom: 20px;
+}
+
+#game-over-message {
+    font-size: 24px;
+    margin-bottom: 30px;
+}
+
+#game-stats {
+    background-color: rgba(255, 255, 255, 0.1);
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 30px;
+    text-align: left;
+}
+
+#game-stats p {
+    margin-bottom: 10px;
+    font-size: 18px;
+}
+
+/* Utility classes */
+.hidden {
+    display: none !important;
+}
+
+/* Animations */
+@keyframes titleGlow {
+    0% {
+        text-shadow: 
+            0 0 10px #ff0000,
+            0 0 20px #ff0000,
+            0 0 30px #ff0000,
+            2px 2px 2px rgba(0,0,0,0.5);
+    }
+    100% {
+        text-shadow: 
+            0 0 15px #ff0000,
+            0 0 30px #ff0000,
+            0 0 45px #ff0000,
+            0 0 60px #ff3333,
+            2px 2px 2px rgba(0,0,0,0.7);
+        color: #ff5555;
+    }
+}
+
+.fadeOut {
+    animation: fadeOut 2s forwards;
+}
+
+@keyframes fadeOut {
+    0% { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+/* Responsive design for different screen sizes */
+@media (max-width: 768px) {
+    .game-title {
+        font-size: 42px;
+    }
+    
+    .menu-button {
+        padding: 12px 24px;
+        font-size: 20px;
+    }
+    
+    #health-container {
+        flex-direction: column;
+        gap: 15px;
+        align-items: flex-start;
+    }
+    
+    #boss-container {
+        width: 100%;
+        align-items: flex-start;
+    }
+    
+    #boss-name {
+        text-align: left;
+    }
+    
+    #joystick-container {
+        width: 120px;
+        height: 120px;
+        bottom: 30px;
+        left: 30px;
+    }
+    
+    #joystick {
+        width: 60px;
+        height: 60px;
+    }
+    
+    #attack-button {
+        width: 80px;
+        height: 80px;
+        bottom: 40px;
+        right: 40px;
+        font-size: 16px;
+    }
+    
+    #crosshair {
+        font-size: 20px;
+    }
+    
+    #party-code-display {
+        flex-direction: column;
+        gap: 10px;
+    }
+}
+
+/* Landscape adjustments for mobile */
+@media (max-height: 500px) and (orientation: landscape) {
+    .game-title {
+        font-size: 36px;
+        margin-bottom: 20px;
+    }
+    
+    .menu-buttons {
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    
+    .menu-button {
+        padding: 10px 20px;
+        font-size: 18px;
+        min-width: 150px;
+    }
+    
+    #joystick-container {
+        transform: scale(0.7);
+        transform-origin: bottom left;
+    }
+    
+    #attack-button {
+        transform: scale(0.7);
+        transform-origin: bottom right;
+    }
+}

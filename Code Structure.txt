@@ -1,0 +1,41 @@
+/client
+  /assets
+    /models      # 3D models
+    /textures    # Textures
+    /sounds      # Sound effects
+  /css
+    main.css     # Main styles
+    ui.css       # UI-specific styles
+  /js
+    /core
+      game.js           # Main game class
+      renderer.js       # Optimized renderer setup
+      input.js          # Input handling (keyboard, touch, etc.)
+      mobile.js         # Mobile-specific optimizations
+    /entities
+      player.js         # Player class
+      boss.js           # Boss classes
+      projectile.js     # Projectile system
+    /ui
+      menu.js           # Main menu system
+      party.js          # Party management UI
+      hud.js            # In-game HUD
+    /multiplayer
+      client.js         # Socket.io client implementation
+    /utils
+      pool.js           # Object pooling for performance
+      assets.js         # Asset loading and management
+    /world
+      room.js           # Room generation
+      loot.js           # Item/loot system
+    main.js             # Entry point
+  index.html            # Main HTML file
+
+/server
+  server.js             # Express + Socket.io server
+  /game
+    room-manager.js     # Server-side room management
+    party-manager.js    # Server-side party management
+  /utils
+    validation.js       # Input validation
+  package.json          # Server dependencies

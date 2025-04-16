@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link href="main.css" rel="stylesheet" type="text/css" />
+    <title>Multiplayer Deathroom Raid</title>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+          "socket.io-client": "https://cdn.socket.io/4.7.3/socket.io.esm.min.js"
+        }
+      }
+    </script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=MedievalSharp&display=swap" rel="stylesheet">
+  </head>
+  <body>
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="screen active">
+      <div class="loading-container">
+        <h1>Deathroom Raid</h1>
+        <div class="progress-container">
+          <div id="progress-bar" class="progress-bar"></div>
+        </div>
+        <p id="loading-text">Loading game assets...</p>
+      </div>
+    </div>
+
+    <!-- Main Menu Screen -->
+    <div id="menu-screen" class="screen">
+      <div class="menu-container">
+        <h1 class="game-title">Deathroom Raid</h1>
+        <div class="menu-buttons">
+          <button id="hostPartyBtn" class="menu-button">Host Party</button>
+          <button id="joinPartyBtn" class="menu-button">Join Party</button>
+          <button id="soloPlayBtn" class="menu-button">Play Solo</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Party Lobby Screen -->
+    <div id="lobby-screen" class="screen">
+      <div class="party-container">
+        <h2>Party Lobby</h2>
+        <div id="party-code-display">
+          <span>Party Code:</span>
+          <span id="party-code">------</span>
+          <button id="copy-code">Copy</button>
+        </div>
+        <div id="party-members"></div>
+        <div class="party-controls">
+          <button id="leavePartyBtn" class="secondary-button">Leave Party</button>
+          <button id="startGameBtn" class="primary-button">Start Game</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Join Party Screen -->
+    <div id="join-screen" class="screen">
+      <div class="join-container">
+        <h2>Join Party</h2>
+        <div class="input-group">
+          <label for="party-code-input">Enter Party Code:</label>
+          <input type="text" id="party-code-input" maxlength="6" autocomplete="off" placeholder="XXXXXX">
+        </div>
+        <div class="join-controls">
+          <button id="backToMenuBtn" class="secondary-button">Back</button>
+          <button id="submitCodeBtn" class="primary-button">Join</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="gameover-screen" class="screen">
+      <div class="game-over-container">
+        <h2 id="game-over-title">Game Over</h2>
+        <p id="game-over-message">Your party has been defeated!</p>
+        <div id="game-stats">
+          <p>Rooms Cleared: <span id="rooms-cleared">0</span></p>
+          <p>Enemies Killed: <span id="enemies-killed">0</span></p>
+          <p>Damage Dealt: <span id="damage-dealt">0</span></p>
+        </div>
+        <div class="game-over-controls">
+          <button id="backToMenuFromGameOverBtn" class="secondary-button">Main Menu</button>
+          <button id="restartGameBtn" class="primary-button">Play Again</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Game UI -->
+    <div id="game-ui">
+      <div id="health-container">
+        <div id="player-stats">
+          <div class="stat-label">Player Health</div>
+          <div id="player-health" class="health-bar">
+            <div id="health-fill"></div>
+          </div>
+          <div id="player-attributes">
+            <div class="player-stat">
+              <div class="stat-value" id="player-level">1</div>
+            </div>
+            <div class="player-stat">
+              <div class="stat-value" id="player-kills">0</div>
+            </div>
+          </div>
+        </div>
+        <div id="boss-container" class="hidden">
+          <div id="boss-name">Boss Name</div>
+          <div id="boss-health" class="health-bar">
+            <div id="boss-health-fill"></div>
+          </div>
+        </div>
+      </div>
+      <div id="pickup-message"></div>
+      <div id="crosshair">+</div>
+    </div>
+
+    <!-- Mobile Controls -->
+    <div id="mobile-controls">
+      <div id="joystick-container">
+        <div id="joystick"></div>
+      </div>
+      <div id="attack-button">Attack</div>
+      <div id="look-controls"></div>
+    </div>
+
+    <!-- Device Rotation Message -->
+    <div id="rotate-device" style="display: none;">
+      <p>⟳</p>
+      <p>Please rotate your device to landscape mode for the best experience</p>
+    </div>
+
+    <!-- Load socket.io client first (from server) -->
+    <script src="/socket.io/socket.io.js"></script>
+    
+    <!-- Main Game Script (with type="module" for ES6 imports) -->
+    <script type="module" src="js/main.js"></script>
+  </body>
+</html>
