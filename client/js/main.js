@@ -1,23 +1,18 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import io from 'socket.io-client';
 import Game from './core/game.js';
 import Player from './entities/player.js';
 import Enemy from './entities/enemy.js';
+import MultiplayerClient from './multiplayer/client.js';
 import { initializeMobileSupport, setupMobileControls } from './core/mobile.js';
 
 // Main game variables
 let scene, camera, renderer, controls;
 let game;
-let socket;
+let multiplayerClient;
 let playerID;
 let playerEntities = {};
 let isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
-// Connection to server
-const SERVER_URL = window.location.hostname === 'localhost' 
-    ? 'http://localhost:3000' 
-    : window.location.origin;
 
 // Game settings
 const settings = {
@@ -76,11 +71,22 @@ function init() {
     // Handle resize
     window.addEventListener('resize', onWindowResize);
     
-    // Connect to server
-    connectToServer();
+    // Initialize multiplayer client
+    initializeMultiplayer();
+    
+    // Setup UI event listeners
+    setupUIListeners();
     
     // Start animation loop
     animate();
+    
+    // Show menu screen
+    showScreen('menu');
+    
+    // Mobile support
+    if (isMobile) {
+        initializeMobileSupport();
+    }
     
     console.log('Game initialized');
 }
@@ -123,367 +129,425 @@ function animate() {
     renderer.render(scene, camera);
 }
 
-function connectToServer() {
-    socket = io(SERVER_URL);
+function initializeMultiplayer() {
+    // Create multiplayer client
+    multiplayerClient = new MultiplayerClient(game);
     
-    // Handle connection events
-    socket.on('connect', () => {
-        console.log('Connected to server with ID:', socket.id);
-        playerID = socket.id;
+    // Connect to server event callbacks
+    multiplayerClient.onConnected = (id) => {
+        playerID = id;
+        console.log('Connected with ID:', playerID);
+    };
+    
+    multiplayerClient.onPartyHosted = (partyCode) => {
+        gameState.partyId = partyCode;
+        gameState.isHost = true;
         
-        // Join game
-        socket.emit('joinGame', {
+        // Update UI
+        document.getElementById('party-code').textContent = partyCode;
+        
+        // Show lobby screen
+        showScreen('lobby');
+        updateLobbyPlayers([playerID]);
+    };
+    
+    multiplayerClient.onPartyJoined = (partyCode, playerList) => {
+        gameState.partyId = partyCode;
+        gameState.players = playerList;
+        
+        // Update UI
+        document.getElementById('party-code').textContent = partyCode;
+        
+        // Show lobby screen
+        showScreen('lobby');
+        updateLobbyPlayers(playerList);
+    };
+    
+    multiplayerClient.onJoinError = (errorMsg) => {
+        alert('Failed to join party: ' + errorMsg);
+    };
+    
+    multiplayerClient.onPlayerJoined = (playerId) => {
+        // Add to players list
+        if (!gameState.players.includes(playerId)) {
+            gameState.players.push(playerId);
+        }
+        
+        // Update lobby UI
+        updateLobbyPlayers(gameState.players);
+        
+        // If already in game, add remote player
+        if (gameState.currentScreen === 'game' && game.running) {
+            addRemotePlayer({ id: playerId });
+        }
+    };
+    
+    multiplayerClient.onPlayerLeft = (playerId) => {
+        // Remove from players list
+        gameState.players = gameState.players.filter(p => p !== playerId);
+        
+        // Update lobby UI
+        updateLobbyPlayers(gameState.players);
+        
+        // If in game, remove player
+        if (gameState.currentScreen === 'game' && game.running) {
+            removePlayer(playerId);
+        }
+    };
+    
+    multiplayerClient.onNewHost = (hostId) => {
+        gameState.isHost = (hostId === playerID);
+        
+        // Update UI
+        updateLobbyPlayers(gameState.players);
+        
+        // Enable/disable start button
+        const startButton = document.getElementById('startGameBtn');
+        if (startButton) {
+            startButton.disabled = !gameState.isHost;
+        }
+    };
+    
+    multiplayerClient.onGameStarted = (gameStateData) => {
+        gameState.isMultiplayer = true;
+        
+        // Show game screen
+        showScreen('game');
+        
+        // Setup local player
+        setupLocalPlayer({
             id: playerID,
-            name: 'Player_' + playerID.substring(0, 5),
-            isMobile: isMobile
+            type: 0,
+            name: 'Player_' + playerID.substring(0, 5)
         });
-    });
-    
-    // Handle server events
-    socket.on('gameJoined', (data) => {
-        console.log('Joined game:', data);
-        setupLocalPlayer(data.player);
         
-        // Add existing players
-        for (const otherPlayer of data.players) {
-            if (otherPlayer.id !== playerID) {
-                addRemotePlayer(otherPlayer);
+        // Add other players
+        for (const playerId of gameState.players) {
+            if (playerId !== playerID) {
+                addRemotePlayer({
+                    id: playerId,
+                    type: 0,
+                    name: 'Player_' + playerId.substring(0, 5)
+                });
             }
         }
         
-        // Load initial room
-        game.loadRoom(data.room);
-    });
-    
-    socket.on('playerJoined', (player) => {
-        console.log('Player joined:', player);
-        if (player.id !== playerID) {
-            addRemotePlayer(player);
+        // Load first room
+        if (gameStateData && gameStateData.rooms && gameStateData.rooms.length > 0) {
+            const roomIndex = gameStateData.currentRoom || 0;
+            game.loadRoom(gameStateData.rooms[roomIndex]);
         }
-    });
+        
+        // Start game
+        game.start();
+        
+        // Show game UI
+        document.getElementById('game-ui').style.display = 'block';
+    };
     
-    socket.on('playerLeft', (id) => {
-        console.log('Player left:', id);
-        removePlayer(id);
-    });
+    multiplayerClient.onInputUpdate = (playerId, inputData) => {
+        updateRemotePlayer({
+            id: playerId,
+            position: inputData.position,
+            rotation: inputData.rotation,
+            action: inputData.action
+        });
+    };
     
-    socket.on('playerMoved', (data) => {
-        updateRemotePlayer(data);
-    });
+    multiplayerClient.onPlayerAttacked = (playerId, attackData) => {
+        // Handle remote player attack
+        const player = playerEntities[playerId];
+        
+        if (player) {
+            player.attack();
+        }
+    };
     
-    socket.on('bossUpdate', (data) => {
-        updateBoss(data);
-    });
+    multiplayerClient.onBossHealthUpdate = (bossData) => {
+        updateBoss(bossData);
+    };
     
-    socket.on('roomComplete', (data) => {
+    multiplayerClient.onPlayerHealthUpdate = (playerId, health) => {
+        const player = playerEntities[playerId];
+        
+        if (player) {
+            player.stats.health = health;
+            
+            // Update UI if local player
+            if (playerId === playerID) {
+                updatePlayerHealthUI(health);
+            }
+        }
+    };
+    
+    multiplayerClient.onRoomCompleted = (data) => {
         console.log('Room completed:', data);
-        game.loadRoom(data.nextRoom);
-    });
+        
+        // Show room complete message
+        showNotification(`Room cleared! Moving to next room...`);
+        
+        // Load next room
+        if (data.newRoom) {
+            game.loadRoom(data.newRoom);
+        }
+    };
     
-    socket.on('gameOver', (data) => {
+    multiplayerClient.onGameOver = (data) => {
         console.log('Game over:', data);
         game.stop();
         showGameOver(data);
+    };
+    
+    // Connect to server
+    multiplayerClient.connect();
+}
+
+function setupUIListeners() {
+    // Host party button
+    document.getElementById('hostPartyBtn').addEventListener('click', () => {
+        multiplayerClient.hostParty();
     });
     
-    socket.on('disconnect', () => {
-        console.log('Disconnected from server');
+    // Join party button
+    document.getElementById('joinPartyBtn').addEventListener('click', () => {
+        showScreen('join');
     });
+    
+    // Solo play button
+    document.getElementById('soloPlayBtn').addEventListener('click', () => {
+        startSoloGame();
+    });
+    
+    // Submit code button
+    document.getElementById('submitCodeBtn').addEventListener('click', () => {
+        const codeInput = document.getElementById('party-code-input');
+        if (codeInput && codeInput.value) {
+            multiplayerClient.joinParty(codeInput.value.trim().toUpperCase());
+        }
+    });
+    
+    // Back button from join screen
+    document.getElementById('backToMenuBtn').addEventListener('click', () => {
+        showScreen('menu');
+    });
+    
+    // Start game button
+    document.getElementById('startGameBtn').addEventListener('click', () => {
+        if (gameState.isHost) {
+            multiplayerClient.startGame();
+        }
+    });
+    
+    // Leave party button
+    document.getElementById('leavePartyBtn').addEventListener('click', () => {
+        multiplayerClient.disconnect();
+        showScreen('menu');
+        
+        // Reconnect for future games
+        setTimeout(() => {
+            multiplayerClient.connect();
+        }, 500);
+    });
+    
+    // Copy party code button
+    document.getElementById('copy-code').addEventListener('click', () => {
+        const partyCode = document.getElementById('party-code').textContent;
+        navigator.clipboard.writeText(partyCode)
+            .then(() => {
+                // Show feedback
+                const copyBtn = document.getElementById('copy-code');
+                const originalText = copyBtn.textContent;
+                copyBtn.textContent = 'Copied!';
+                setTimeout(() => {
+                    copyBtn.textContent = originalText;
+                }, 1500);
+            });
+    });
+    
+    // Game over screen buttons
+    document.getElementById('backToMenuFromGameOverBtn').addEventListener('click', () => {
+        window.location.reload(); // Simple reload for now
+    });
+    
+    document.getElementById('restartGameBtn').addEventListener('click', () => {
+        if (gameState.isMultiplayer) {
+            showScreen('lobby');
+        } else {
+            startSoloGame();
+        }
+    });
+}
+
+function showScreen(screenName) {
+    // Hide all screens
+    document.querySelectorAll('.screen').forEach(screen => {
+        screen.classList.remove('active');
+    });
+    
+    // Show requested screen
+    const targetScreen = document.getElementById(screenName + '-screen');
+    if (targetScreen) {
+        targetScreen.classList.add('active');
+        gameState.currentScreen = screenName;
+    }
+    
+    // Hide loading screen if showing another screen
+    if (screenName !== 'loading') {
+        const loadingScreen = document.getElementById('loading-screen');
+        if (loadingScreen) {
+            loadingScreen.classList.remove('active');
+        }
+    }
+    
+    // Show game UI only when in game
+    const gameUI = document.getElementById('game-ui');
+    if (gameUI) {
+        gameUI.style.display = screenName === 'game' ? 'block' : 'none';
+    }
+    
+    // Show mobile controls only when in game and on mobile
+    const mobileControls = document.getElementById('mobile-controls');
+    if (mobileControls && isMobile) {
+        mobileControls.style.display = screenName === 'game' ? 'block' : 'none';
+    }
+}
+
+function updateLobbyPlayers(playerList) {
+    const playersContainer = document.getElementById('party-members');
+    if (!playersContainer) return;
+    
+    // Clear existing players
+    playersContainer.innerHTML = '';
+    
+    // Add players to lobby
+    for (const playerId of playerList) {
+        const playerElement = document.createElement('div');
+        playerElement.className = 'party-member';
+        
+        const avatar = document.createElement('div');
+        avatar.className = 'member-avatar';
+        playerElement.appendChild(avatar);
+        
+        const nameElement = document.createElement('div');
+        nameElement.className = 'member-name';
+        nameElement.textContent = 'Player_' + playerId.substring(0, 5);
+        playerElement.appendChild(nameElement);
+        
+        // Mark host
+        if (multiplayerClient.isHost && playerId === playerID) {
+            const hostBadge = document.createElement('div');
+            hostBadge.className = 'host-indicator';
+            hostBadge.textContent = 'HOST';
+            playerElement.appendChild(hostBadge);
+        }
+        
+        playersContainer.appendChild(playerElement);
+    }
+    
+    // Show/hide start button based on host status
+    const startButton = document.getElementById('startGameBtn');
+    if (startButton) {
+        startButton.disabled = !multiplayerClient.isHost;
+    }
+}
+
+function startSoloGame() {
+    gameState.isMultiplayer = false;
+    
+    // Show game screen
+    showScreen('game');
+    
+    // Setup player
+    setupLocalPlayer({
+        id: 'player-1',
+        type: 0,
+        name: 'Player'
+    });
+    
+    // Generate a simple room with boss
+    const firstRoom = {
+        id: 'room-1',
+        type: 'Dungeon Cell',
+        difficulty: 1,
+        isBossRoom: true,
+        enemies: [],
+        boss: {
+            id: 'boss-1',
+            name: 'Reanimated Executioner',
+            type: 0,
+            health: 200,
+            maxHealth: 200,
+            position: { x: 0, y: 1, z: 0 }
+        }
+    };
+    
+    // Load first room
+    game.loadRoom(firstRoom);
+    
+    // Start game
+    game.start();
+    
+    // Show game UI
+    document.getElementById('game-ui').style.display = 'block';
 }
 
 function setupLocalPlayer(playerData) {
     // Create local player
-    const player = new Player(playerID, playerData.type || 0, game);
-    player.setName(playerData.name);
-    player.setLocalPlayer(true);
+    const player = new Player(playerData.id, true);
+    player.mesh.name = playerData.name;
     
     // Add player to scene and game
-    scene.add(player.mesh);
+    scene.add(player.yawObject);
     game.addEntity(player);
     
     // Store player reference
     game.player = player;
-    playerEntities[playerID] = player;
-    
-    // Setup player movement
-    setupPlayerControls(player);
+    playerEntities[playerData.id] = player;
+    playerID = playerData.id;
     
     // Setup camera follow
     setupCameraFollow(player);
     
-    // Start game
-    game.start();
-}
-
-function setupPlayerControls(player) {
-    // Keyboard controls
-    const keysPressed = {};
-    
-    window.addEventListener('keydown', (event) => {
-        keysPressed[event.code] = true;
-    });
-    
-    window.addEventListener('keyup', (event) => {
-        keysPressed[event.code] = false;
-    });
-    
-    // Update loop for controls
-    function updateControls() {
-        if (!game.running) return;
-        
-        const moveSpeed = settings.movementSpeed * 0.1;
-        const rotateSpeed = settings.rotationSpeed * 0.03;
-        
-        // Forward/backward
-        if (keysPressed['KeyW'] || keysPressed['ArrowUp']) {
-            player.moveForward(moveSpeed);
-        }
-        if (keysPressed['KeyS'] || keysPressed['ArrowDown']) {
-            player.moveForward(-moveSpeed);
-        }
-        
-        // Left/right
-        if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) {
-            player.moveRight(-moveSpeed);
-        }
-        if (keysPressed['KeyD'] || keysPressed['ArrowRight']) {
-            player.moveRight(moveSpeed);
-        }
-        
-        // Rotation
-        if (keysPressed['KeyQ']) {
-            player.rotate(-rotateSpeed);
-        }
-        if (keysPressed['KeyE']) {
-            player.rotate(rotateSpeed);
-        }
-        
-        // Attack
-        if (keysPressed['Space']) {
-            player.attack();
-        }
-        
-        // Send position update to server if moved
-        if (player.hasMoved) {
-            socket.emit('playerMove', {
-                id: playerID,
-                position: {
-                    x: player.mesh.position.x,
-                    y: player.mesh.position.y,
-                    z: player.mesh.position.z
-                },
-                rotation: {
-                    y: player.mesh.rotation.y
-                },
-                action: player.currentAction
-            });
-            player.hasMoved = false;
-        }
-        
-        // Continue the control loop
-        requestAnimationFrame(updateControls);
-    }
-    
-    // Start the control loop
-    updateControls();
-    
-    // Add mobile controls if on mobile
+    // Setup mobile controls if needed
     if (isMobile) {
         setupMobileControls(player);
     }
-}
-
-function setupMobileControls(player) {
-    console.log('Setting up mobile controls');
     
-    // Create virtual joystick container
-    const joystickContainer = document.createElement('div');
-    joystickContainer.id = 'joystick-container';
-    joystickContainer.style.position = 'absolute';
-    joystickContainer.style.bottom = '20px';
-    joystickContainer.style.left = '20px';
-    joystickContainer.style.width = '120px';
-    joystickContainer.style.height = '120px';
-    joystickContainer.style.borderRadius = '60px';
-    joystickContainer.style.backgroundColor = 'rgba(50, 50, 50, 0.5)';
-    document.body.appendChild(joystickContainer);
+    // Update health display
+    updatePlayerHealthUI(player.stats.health);
     
-    // Create joystick
-    const joystick = document.createElement('div');
-    joystick.id = 'joystick';
-    joystick.style.position = 'absolute';
-    joystick.style.top = '35px';
-    joystick.style.left = '35px';
-    joystick.style.width = '50px';
-    joystick.style.height = '50px';
-    joystick.style.borderRadius = '25px';
-    joystick.style.backgroundColor = 'rgba(100, 100, 100, 0.8)';
-    joystickContainer.appendChild(joystick);
-    
-    // Create attack button
-    const attackButton = document.createElement('div');
-    attackButton.id = 'attack-button';
-    attackButton.style.position = 'absolute';
-    attackButton.style.bottom = '20px';
-    attackButton.style.right = '20px';
-    attackButton.style.width = '80px';
-    attackButton.style.height = '80px';
-    attackButton.style.borderRadius = '40px';
-    attackButton.style.backgroundColor = 'rgba(200, 50, 50, 0.7)';
-    attackButton.style.display = 'flex';
-    attackButton.style.justifyContent = 'center';
-    attackButton.style.alignItems = 'center';
-    attackButton.style.fontSize = '20px';
-    attackButton.style.color = 'white';
-    attackButton.textContent = 'Attack';
-    document.body.appendChild(attackButton);
-    
-    // Joystick variables
-    let joystickActive = false;
-    let joystickOrigin = { x: 0, y: 0 };
-    let joystickPosition = { x: 0, y: 0 };
-    
-    // Joystick touch events
-    joystickContainer.addEventListener('touchstart', (event) => {
-        joystickActive = true;
-        
-        const touch = event.touches[0];
-        const rect = joystickContainer.getBoundingClientRect();
-        
-        joystickOrigin.x = rect.left + rect.width / 2;
-        joystickOrigin.y = rect.top + rect.height / 2;
-        
-        joystickPosition.x = touch.clientX;
-        joystickPosition.y = touch.clientY;
-        
-        updateJoystickPosition();
-    });
-    
-    document.addEventListener('touchmove', (event) => {
-        if (!joystickActive) return;
-        
-        const touch = event.touches[0];
-        joystickPosition.x = touch.clientX;
-        joystickPosition.y = touch.clientY;
-        
-        updateJoystickPosition();
-    });
-    
-    document.addEventListener('touchend', () => {
-        joystickActive = false;
-        joystick.style.top = '35px';
-        joystick.style.left = '35px';
-    });
-    
-    // Update joystick position and move player
-    function updateJoystickPosition() {
-        const dx = joystickPosition.x - joystickOrigin.x;
-        const dy = joystickPosition.y - joystickOrigin.y;
-        
-        // Limit joystick movement radius
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        const maxRadius = 35;
-        
-        if (distance > maxRadius) {
-            joystickPosition.x = joystickOrigin.x + (dx / distance) * maxRadius;
-            joystickPosition.y = joystickOrigin.y + (dy / distance) * maxRadius;
-        }
-        
-        // Update joystick element position
-        const joystickLeft = joystickPosition.x - joystickOrigin.x + 35;
-        const joystickTop = joystickPosition.y - joystickOrigin.y + 35;
-        
-        joystick.style.left = joystickLeft + 'px';
-        joystick.style.top = joystickTop + 'px';
-        
-        // Move player based on joystick position
-        const normalizedX = dx / maxRadius;
-        const normalizedY = dy / maxRadius;
-        
-        const moveSpeed = settings.movementSpeed * 0.05;
-        
-        if (Math.abs(normalizedY) > 0.1) {
-            player.moveForward(-normalizedY * moveSpeed);
-        }
-        
-        if (Math.abs(normalizedX) > 0.1) {
-            player.moveRight(normalizedX * moveSpeed);
-        }
-        
-        // Send position update to server
-        if (player.hasMoved) {
-            socket.emit('playerMove', {
-                id: playerID,
-                position: {
-                    x: player.mesh.position.x,
-                    y: player.mesh.position.y,
-                    z: player.mesh.position.z
-                },
-                rotation: {
-                    y: player.mesh.rotation.y
-                },
-                action: player.currentAction
-            });
-            player.hasMoved = false;
-        }
-    }
-    
-    // Attack button events
-    attackButton.addEventListener('touchstart', () => {
-        player.attack();
-    });
+    return player;
 }
 
 function setupCameraFollow(player) {
     // Disable orbit controls
     controls.enabled = false;
     
-    // Set up camera to follow player
-    function updateCamera() {
-        if (!game.running) return;
-        
-        // Position camera behind player
-        const offset = new THREE.Vector3(0, 3, 5);
-        offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), player.mesh.rotation.y);
-        
-        camera.position.x = player.mesh.position.x + offset.x;
-        camera.position.y = player.mesh.position.y + offset.y;
-        camera.position.z = player.mesh.position.z + offset.z;
-        
-        // Look at player
-        camera.lookAt(
-            player.mesh.position.x,
-            player.mesh.position.y + 1,
-            player.mesh.position.z
-        );
-        
-        requestAnimationFrame(updateCamera);
-    }
-    
-    updateCamera();
+    // Add camera to player's pitch object
+    player.pitchObject.add(camera);
+    camera.position.set(0, 0, 0);
 }
 
 function addRemotePlayer(playerData) {
     // Create remote player
-    const player = new Player(playerData.id, playerData.type || 0, game);
-    player.setName(playerData.name);
+    const player = new Player(playerData.id, false);
+    
+    // Add name
+    if (playerData.name) {
+        player.mesh.name = playerData.name;
+    }
     
     // Set initial position if provided
     if (playerData.position) {
-        player.mesh.position.set(
+        player.yawObject.position.set(
             playerData.position.x,
             playerData.position.y,
             playerData.position.z
         );
     }
     
-    // Set initial rotation if provided
-    if (playerData.rotation) {
-        player.mesh.rotation.y = playerData.rotation.y;
-    }
-    
     // Add player to scene and game
-    scene.add(player.mesh);
+    scene.add(player.yawObject);
     game.addEntity(player);
     
     // Store player reference
@@ -498,7 +562,7 @@ function removePlayer(id) {
     
     if (player) {
         // Remove from scene and game
-        scene.remove(player.mesh);
+        scene.remove(player.yawObject);
         game.removeEntity(player);
         
         // Remove from references
@@ -513,7 +577,7 @@ function updateRemotePlayer(data) {
     if (player && player !== game.player) {
         // Update position
         if (data.position) {
-            player.mesh.position.set(
+            player.yawObject.position.set(
                 data.position.x,
                 data.position.y,
                 data.position.z
@@ -522,12 +586,15 @@ function updateRemotePlayer(data) {
         
         // Update rotation
         if (data.rotation) {
-            player.mesh.rotation.y = data.rotation.y;
+            player.yawObject.rotation.y = data.rotation.y;
+            if (data.rotation.x !== undefined) {
+                player.pitchObject.rotation.x = data.rotation.x;
+            }
         }
         
-        // Update action
+        // Update animation state
         if (data.action) {
-            player.setAction(data.action);
+            player.animationState = data.action;
         }
     }
 }
@@ -552,77 +619,87 @@ function updateBoss(data) {
         // Update health
         if (data.health !== undefined) {
             game.currentBoss.health = data.health;
-            // Update health bar if it exists
-            if (game.currentBoss.updateHealthBar) {
-                game.currentBoss.updateHealthBar();
-            }
+            updateBossHealthUI();
         }
         
         // Update phase
         if (data.phase !== undefined) {
-            game.currentBoss.setPhase(data.phase);
-        }
-        
-        // Update action
-        if (data.action) {
-            game.currentBoss.setAction(data.action);
+            game.currentBoss.phase = data.phase;
         }
     }
 }
 
-function showGameOver(data) {
-    // Create game over screen
-    const gameOverDiv = document.createElement('div');
-    gameOverDiv.style.position = 'absolute';
-    gameOverDiv.style.top = '0';
-    gameOverDiv.style.left = '0';
-    gameOverDiv.style.width = '100%';
-    gameOverDiv.style.height = '100%';
-    gameOverDiv.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
-    gameOverDiv.style.display = 'flex';
-    gameOverDiv.style.flexDirection = 'column';
-    gameOverDiv.style.justifyContent = 'center';
-    gameOverDiv.style.alignItems = 'center';
-    gameOverDiv.style.color = 'white';
-    gameOverDiv.style.fontSize = '24px';
-    gameOverDiv.style.fontFamily = 'Arial, sans-serif';
-    gameOverDiv.style.zIndex = '1000';
+function updatePlayerHealthUI(health) {
+    if (!game.player) return;
     
-    // Add game over text
-    const gameOverText = document.createElement('h1');
-    gameOverText.textContent = 'Game Over';
-    gameOverText.style.marginBottom = '20px';
-    gameOverDiv.appendChild(gameOverText);
+    const maxHealth = game.player.stats.maxHealth;
+    const percentage = (health / maxHealth) * 100;
     
-    // Add stats
-    const statsText = document.createElement('div');
-    statsText.innerHTML = `Rooms Cleared: ${data.roomsCleared}<br>`;
-    
-    if (data.playerStats) {
-        statsText.innerHTML += `Damage Dealt: ${data.playerStats.damageDealt || 0}<br>`;
-        statsText.innerHTML += `Damage Taken: ${data.playerStats.damageTaken || 0}<br>`;
+    // Update fill
+    const healthFill = document.getElementById('health-fill');
+    if (healthFill) {
+        healthFill.style.width = `${percentage}%`;
     }
     
-    gameOverDiv.appendChild(statsText);
+    // Update text
+    const healthText = document.getElementById('player-health-text');
+    if (healthText) {
+        healthText.textContent = `${health}/${maxHealth}`;
+    }
+}
+
+function updateBossHealthUI() {
+    if (!game.currentBoss) return;
     
-    // Add restart button
-    const restartButton = document.createElement('button');
-    restartButton.textContent = 'Restart Game';
-    restartButton.style.marginTop = '30px';
-    restartButton.style.padding = '10px 20px';
-    restartButton.style.fontSize = '18px';
-    restartButton.style.cursor = 'pointer';
-    restartButton.style.backgroundColor = '#5555ff';
-    restartButton.style.border = 'none';
-    restartButton.style.borderRadius = '5px';
-    restartButton.style.color = 'white';
+    const boss = game.currentBoss;
+    const percentage = (boss.health / boss.maxHealth) * 100;
     
-    restartButton.addEventListener('click', () => {
-        window.location.reload();
-    });
+    // Show boss container
+    const bossContainer = document.getElementById('boss-container');
+    if (bossContainer) {
+        bossContainer.classList.remove('hidden');
+    }
     
-    gameOverDiv.appendChild(restartButton);
-    document.body.appendChild(gameOverDiv);
+    // Update name
+    const bossName = document.getElementById('boss-name');
+    if (bossName) {
+        bossName.textContent = boss.name;
+    }
+    
+    // Update fill
+    const bossFill = document.getElementById('boss-health-fill');
+    if (bossFill) {
+        bossFill.style.width = `${percentage}%`;
+    }
+}
+
+function showNotification(message, duration = 3000) {
+    const pickupMessage = document.getElementById('pickup-message');
+    if (pickupMessage) {
+        pickupMessage.textContent = message;
+        pickupMessage.style.opacity = '1';
+        
+        // Hide after duration
+        setTimeout(() => {
+            pickupMessage.style.opacity = '0';
+        }, duration);
+    }
+}
+
+function showGameOver(data) {
+    // Show game over screen
+    showScreen('gameover');
+    
+    // Update stats
+    document.getElementById('rooms-cleared').textContent = data.roomsCleared || 0;
+    
+    // Get player stats
+    const playerStats = data.playerStats ? data.playerStats[playerID] : null;
+    
+    if (playerStats) {
+        document.getElementById('enemies-killed').textContent = playerStats.kills || 0;
+        document.getElementById('damage-dealt').textContent = playerStats.damageDealt || 0;
+    }
 }
 
 // Start the game when loaded
