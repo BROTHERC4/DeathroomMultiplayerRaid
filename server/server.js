@@ -4,15 +4,19 @@ const http = require('http').createServer(app);
 const io = require('socket.io')(http);
 const path = require('path');
 
-// Configure proper MIME types
-express.static.mime.define({
-  'text/css': ['css'],
-  'text/javascript': ['js'],
-  'application/javascript': ['mjs']
-});
-
 // Serve static files from the client directory with proper path resolution
-app.use(express.static(path.join(__dirname, '../client')));
+app.use(express.static(path.join(__dirname, '../client'), {
+  setHeaders: (res, path) => {
+    // Set correct content types for specific file extensions
+    if (path.endsWith('.css')) {
+      res.setHeader('Content-Type', 'text/css');
+    } else if (path.endsWith('.js')) {
+      res.setHeader('Content-Type', 'text/javascript');
+    } else if (path.endsWith('.mjs')) {
+      res.setHeader('Content-Type', 'application/javascript');
+    }
+  }
+}));
 
 // Health check endpoint for Railway
 app.get('/health', (req, res) => {
@@ -360,6 +364,17 @@ function generatePartyCode() {
 app.use((err, req, res, next) => {
   console.error('Server error:', err);
   res.status(500).send('Something went wrong on the server');
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception:', err);
+  // Keep the process running
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  // Keep the process running
 });
 
 // Start the server
