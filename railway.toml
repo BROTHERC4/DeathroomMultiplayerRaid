@@ -4,5 +4,5 @@ buildCommand = "npm install"
 
 [deploy]
 startCommand = "npm start"
-healthcheckPath = "/"
+healthcheckPath = "/health"
 healthcheckTimeout = 100 

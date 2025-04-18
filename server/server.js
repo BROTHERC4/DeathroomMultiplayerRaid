@@ -4,8 +4,25 @@ const http = require('http').createServer(app);
 const io = require('socket.io')(http);
 const path = require('path');
 
+// Configure proper MIME types
+express.static.mime.define({
+  'text/css': ['css'],
+  'text/javascript': ['js'],
+  'application/javascript': ['mjs']
+});
+
 // Serve static files from the client directory with proper path resolution
 app.use(express.static(path.join(__dirname, '../client')));
+
+// Health check endpoint for Railway
+app.get('/health', (req, res) => {
+  res.status(200).send('OK');
+});
+
+// Additional fallback route for SPA
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../client/index.html'));
+});
 
 // Party management
 const parties = {};
@@ -338,6 +355,12 @@ function generatePartyCode() {
   
   return code;
 }
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Server error:', err);
+  res.status(500).send('Something went wrong on the server');
+});
 
 // Start the server
 const PORT = process.env.PORT || 3000;
