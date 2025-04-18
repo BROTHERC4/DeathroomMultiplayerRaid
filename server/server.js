@@ -2,8 +2,10 @@ const express = require('express');
 const app = express();
 const http = require('http').createServer(app);
 const io = require('socket.io')(http);
+const path = require('path');
 
-app.use(express.static('../client'));
+// Serve static files from the client directory with proper path resolution
+app.use(express.static(path.join(__dirname, '../client')));
 
 // Party management
 const parties = {};
